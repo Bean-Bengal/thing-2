@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bell Rings</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:sans-serif;margin:0;padding:12px;background:#f4efe6;color:#222;max-width:640px}
+h1{font-size:22px;margin:0 0 8px}
+label{display:block;margin:6px 0}
+input[type=range]{width:100%}
+button{min-height:44px;padding:0 18px;font-size:16px;margin:6px 6px 6px 0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+canvas{width:100%;height:200px;background:#fff;border:1px solid #999;display:block}
+#info{margin:8px 0;min-height:40px}
+</style></head><body>
+<script data-bean-store>(function(){if(typeof location!=='undefined'&&location&&location.protocol==='about:'&&typeof document!=='undefined'&&document.addEventListener){document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href^="#"]');if(!a||a.target==='_blank')return;e.preventDefault();try{location.hash=a.getAttribute('href')}catch(x){}},true)}if(typeof window==='undefined')return;try{window.localStorage.getItem('x');return}catch(e){}var d=Object.assign({},window.__BEAN_SAVED||{});function post(){try{parent.postMessage({type:'bean-store',data:d},'*')}catch(e){}}var ls={getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},setItem:function(k,v){d[k]=String(v);post()},removeItem:function(k){delete d[k];post()},clear:function(){d={};post()},key:function(i){return Object.keys(d)[i]||null}};Object.defineProperty(ls,'length',{get:function(){return Object.keys(d).length}});try{Object.defineProperty(window,'localStorage',{value:ls,configurable:true})}catch(e){}})();</script>
+<h1>Bell Rings</h1>
+<p>Pick a bell size and which partials ring. Each one fades at its own rate.</p>
+<label>Bell size: <b id="sz">5</b> (1 small, 10 big)
+<input type="range" id="size" min="1" max="10" value="5"></label>
+<div id="parts" class="row"></div>
+<button id="go">Strike</button> <span>Strikes: <b id="cnt">0</b></span>
+<canvas id="cv"></canvas>
+<div id="info"></div>
+<script>
+var P=[{n:'Hum',r:1,d:6},{n:'Prime',r:2,d:4},{n:'Tierce',r:2.4,d:2.6},{n:'Quint',r:3,d:1.8},{n:'Nominal',r:4,d:1.2},{n:'High',r:5.4,d:0.6}];
+function baseFreq(size){return 440*Math.pow(0.5,(size-1)/4.5)*0.9+60;}
+// bigger bells ring longer; low partials gain more from size than high ones
+function decay(p,size,i){var k=0.6+size*0.1;var boost=Math.pow(size/5,1.3-i*0.15);return p.d*k*Math.max(0.5,boost);}
+var on=P.map(function(){return true});
+var box=document.getElementById('parts');
+P.forEach(function(p,i){var l=document.createElement('label');var c=document.createElement('input');c.type='checkbox';c.checked=true;c.onchange=function(){on[i]=c.checked;draw(0,false)};l.appendChild(c);l.appendChild(document.createTextNode(' '+p.n));box.appendChild(l)});
+var size=5,ac=null,t0=null,raf=0,strikes=0;
+var cv=document.getElementById('cv'),cx=cv.getContext('2d');
+document.getElementById('size').oninput=function(){size=+this.value;document.getElementById('sz').textContent=size;draw(0,false)};
+function ring(){var m=0;P.forEach(function(p,i){if(on[i])m=Math.max(m,decay(p,size,i))});return m}
+function showCount(){document.getElementById('cnt').textContent=strikes}
+function draw(t,live){
+ var w=cv.clientWidth,h=cv.clientHeight;cv.width=w;cv.height=h;
+ cx.fillStyle='#fff';cx.fillRect(0,0,w,h);
+ var bh=h/P.length;
+ P.forEach(function(p,i){
+  var d=decay(p,size,i);var v=live?Math.exp(-5*t/d):1;
+  cx.fillStyle=on[i]?'#c8552e':'#ddd';
+  cx.fillRect(70,i*bh+6,(w-80)*(on[i]?v:0.02),bh-12);
+  cx.fillStyle='#222';cx.font='12px sans-serif';cx.fillText(p.n,4,i*bh+bh/2+4);
+ });
+ document.getElementById('info').textContent='Hum pitch about '+Math.round(baseFreq(size))+' Hz. Ring length (till quiet): about '+ring().toFixed(1)+' s.';
+}
+document.getElementById('go').onclick=function(){
+ strikes++;showCount(); // update counter before drawing
+ try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+ var now=ac.currentTime,f=baseFreq(size);
+ P.forEach(function(p,i){if(!on[i])return;var o=ac.createOscillator(),g=ac.createGain(),d=decay(p,size,i);
+  o.frequency.value=f*p.r;g.gain.setValueAtTime(0.15,now);g.gain.exponentialRampToValueAtTime(0.0005,now+d);
+  o.connect(g);g.connect(ac.destination);o.start(now);o.stop(now+d+0.1)});}catch(e){}
+ t0=performance.now();cancelAnimationFrame(raf);
+ (function f(){var t=(performance.now()-t0)/1000;var more=t<ring();draw(t,true);if(more)raf=requestAnimationFrame(f);else draw(0,false)})();
+};
+window.onresize=function(){draw(0,false)};
+draw(0,false);
+</script></body></html>
